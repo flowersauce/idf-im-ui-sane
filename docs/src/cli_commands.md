@@ -16,7 +16,7 @@ These options can be used with any command:
 - `-v, --verbose`: Increase verbosity level (can be used multiple times)
 - `--log-file <LOG_FILE>`: File in which logs will be stored (default: eim.log)
 - `--do-not-track <DO_NOT_TRACK>`: If set to true, the installer will not send any usage data. Default is false. Applies to every subcommand, including `eim gui` — when the GUI is launched via the CLI it inherits this flag and starts with telemetry disabled. [possible values: true, false]
-- `--esp-idf-json-path <PATH>`: Path to the directory for `eim_idf.json`. During install, the configuration file is saved here. For version management commands (list, select, rename, remove, etc.), it specifies where to read the file. Defaults to `~/.espressif/tools` on POSIX, `C:\Espressif\tools` on Windows.
+- `--esp-idf-json-path <PATH>`: Path to the directory for `eim_idf.json`. Overrides `EIM_ESP_IDF_JSON_PATH`. During install, the configuration file is saved here. For version management commands (list, select, rename, remove, etc.), it specifies where to read the file. Defaults to `~/.espressif/tools` on POSIX, `C:\Espressif\tools` on Windows.
 - `-h, --help`: Print help information
 - `-V, --version`: Print version information
 
@@ -252,9 +252,21 @@ eim shell [IDF_VERSION]
 Arguments:
 - `IDF_VERSION`: The ID, name, or path of the installed IDF version (optional)
 
+Windows option:
+
+- `--shell <SHELL>`: Explicitly choose `pwsh` (PowerShell 7), `powershell` (Windows PowerShell 5.1), or the full path to either executable. An unavailable explicit choice is reported as an error rather than silently replaced.
+
+```powershell
+eim shell --shell pwsh
+eim shell v6.1 --shell powershell
+eim shell --shell 'C:\Program Files\PowerShell\7\pwsh.exe'
+```
+
+Without `--shell`, Windows preserves the nearest identifiable PowerShell ancestor, including its executable path. If no PowerShell caller can be identified, EIM uses its existing PowerShell discovery. The selected shell loads its normal profiles and dot-sources the activation script inside that same interactive process, so activated functions and aliases remain available. Profiles can initialize prompts such as Starship normally; unsaved functions and aliases in the calling session are not copied to a new process. PowerShell execution policy still applies to profiles and activation scripts.
+
 If `IDF_VERSION` is not provided, the command uses the currently selected IDF version (set via `eim select`). If no version is selected and none is specified, an error is returned.
 
-The new shell is your normal login shell (`$SHELL`), started with its usual startup files (e.g. `~/.bashrc`, `~/.zshrc`) so your own aliases, functions and prompt customizations are kept, in addition to the ESP-IDF ones — `idf.py`, `esptool.py` and friends are available as real shell functions, not just as commands reachable through `PATH`. Bash, zsh and fish are supported directly; on Windows the environment is activated in a PowerShell session (`-NoExit`). Type `exit` (or press Ctrl+D) to leave the shell and return to your previous one — activation is local to that shell process and is not persisted anywhere.
+The new shell is your normal login shell (`$SHELL`), started with its usual startup files (e.g. `~/.bashrc`, `~/.zshrc`) so your own aliases, functions and prompt customizations are kept, in addition to the ESP-IDF ones — `idf.py`, `esptool.py` and friends are available as real shell functions, not just as commands reachable through `PATH`. Bash, zsh and fish are supported directly; on Windows the environment is activated in a PowerShell session (`-NoExit`). Type `exit` (or press Ctrl+D) to leave the shell and return to your previous one — environment-variable changes are local to that shell process and its descendants.
 
 ### Discover Command
 

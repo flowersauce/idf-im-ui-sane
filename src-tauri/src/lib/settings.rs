@@ -16,6 +16,16 @@ use crate::idf_config::{
 use crate::system_dependencies::PYTHON_NAME_TO_INSTALL;
 use crate::utils::{get_git_path, is_valid_idf_directory};
 
+/// Resolves an explicit registry directory before the persistent environment override.
+/// Empty environment values behave as if the variable were unset.
+pub fn resolve_esp_idf_json_path(explicit: Option<String>) -> Option<String> {
+    explicit.or_else(|| {
+        std::env::var("EIM_ESP_IDF_JSON_PATH")
+            .ok()
+            .filter(|path| !path.trim().is_empty())
+    })
+}
+
 macro_rules! merge_fields {
     ($self:expr, $other:expr, $($field:ident),*) => {
         $(
@@ -101,7 +111,8 @@ impl Default for Settings {
                     .to_string(),
             };
 
-        let default_esp_idf_json_path_value = tool_install_folder_name_value.clone();
+        let default_esp_idf_json_path_value = resolve_esp_idf_json_path(None)
+            .unwrap_or_else(|| tool_install_folder_name_value.clone());
         let default_activation_script_path_override = tool_install_folder_name_value.clone();
         let default_path_value = if std::env::consts::OS == "windows" {
             PathBuf::from(r"C:\esp")
@@ -180,6 +191,9 @@ impl Settings {
             settings.idf_features
         );
 
+        if let Some(path) = resolve_esp_idf_json_path(None) {
+            settings.esp_idf_json_path = Some(path);
+        }
         settings.apply_cli_overrides(cli_settings)?;
 
         // Set the config file field if not already set

@@ -143,7 +143,7 @@ pub fn get_powershell_version() -> std::io::Result<i32> {
 }
 
 #[cfg(target_os = "windows")]
-fn find_powershell() -> std::path::PathBuf {
+pub(crate) fn find_powershell() -> std::path::PathBuf {
     // 1. Well-known fixed install paths.
     let program_files =
         std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".to_string());

@@ -12,13 +12,13 @@ use helpers::generic_select;
 use idf_im_lib::get_log_directory;
 use idf_im_lib::idf_config::{InstallationStatus, IDF_CONFIG_FILE_NAME};
 use idf_im_lib::logging::formatter;
-use idf_im_lib::settings::Settings;
+use idf_im_lib::settings::{resolve_esp_idf_json_path, Settings};
 use idf_im_lib::utils::is_valid_idf_directory;
 use idf_im_lib::version_manager::get_selected_version;
 use idf_im_lib::version_manager::prepare_settings_for_fix_idf_installation;
 use idf_im_lib::version_manager::remove_single_idf_version;
 use idf_im_lib::version_manager::run_command_in_context;
-use idf_im_lib::version_manager::run_interactive_shell_in_context;
+use idf_im_lib::version_manager::run_interactive_shell_in_context_with_shell;
 use idf_im_lib::version_manager::select_idf_version;
 use log::debug;
 use log::error;
@@ -334,8 +334,8 @@ pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
     if !do_not_track {
         telemetry::track_cli_invoked(subcommand_name(&command));
     }
-    let cli_esp_idf_json_path = cli.esp_idf_json_path;
-    let config_path = cli_esp_idf_json_path
+    let registry_directory_override = resolve_esp_idf_json_path(cli.esp_idf_json_path);
+    let config_path = registry_directory_override
         .as_ref()
         .map(|p| PathBuf::from(p).join(IDF_CONFIG_FILE_NAME));
     match command {
@@ -347,7 +347,7 @@ pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             match settings {
                 Ok(mut settings) => {
                     debug!("Settings before adjustments: {:?}", settings);
-                    if let Some(ref p) = cli_esp_idf_json_path {
+                    if let Some(ref p) = registry_directory_override {
                         settings.esp_idf_json_path = Some(p.clone());
                     }
                     if install_args.install_all_prerequisites.is_none() {
@@ -675,11 +675,15 @@ pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
                 Err(err) => Err(err),
             }
         }
-        Commands::Shell { idf } => {
+        Commands::Shell { idf, shell } => {
             let idf_identifier = resolve_idf_identifier(idf, config_path.as_ref())?;
 
             info!("{}", t!("shell.starting", idf = idf_identifier));
-            match run_interactive_shell_in_context(&idf_identifier, config_path.as_ref()) {
+            match run_interactive_shell_in_context_with_shell(
+                &idf_identifier,
+                config_path.as_ref(),
+                shell.as_deref(),
+            ) {
                 Ok(status) => {
                     if !status.success() {
                         return Err(anyhow::anyhow!(t!("shell.command_failed")));
@@ -915,7 +919,7 @@ pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             let settings = Settings::new(install_args.config.clone(), install_args.clone());
             match settings {
                 Ok(mut settings) => {
-                    if let Some(ref p) = cli_esp_idf_json_path {
+                    if let Some(ref p) = registry_directory_override {
                         settings.esp_idf_json_path = Some(p.clone());
                     }
                     settings.non_interactive = Some(false);
@@ -1052,7 +1056,7 @@ pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             let do_not_track = cli.do_not_track;
             let settings = match Settings::new(install_args.config.clone(), install_args.clone()) {
                 Ok(mut settings) => {
-                    if let Some(ref p) = cli_esp_idf_json_path {
+                    if let Some(ref p) = registry_directory_override {
                         settings.esp_idf_json_path = Some(p.clone());
                     }
                     Some(settings)

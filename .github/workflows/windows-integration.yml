@@ -1,0 +1,45 @@
+name: Windows configuration and shell integration
+
+on:
+  pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/windows-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-integration:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: windows-cli-integration-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Prepare isolated runner's test profiles
+        shell: pwsh
+        run: |
+          foreach ($EimPowerShell in @('pwsh', 'powershell')) {
+            $EimProfile = & $EimPowerShell -NoLogo -NoProfile -Command '$PROFILE.CurrentUserCurrentHost'
+            if ($LASTEXITCODE -ne 0) { throw "Cannot query $EimPowerShell profile" }
+            New-Item -ItemType Directory -Force (Split-Path $EimProfile) | Out-Null
+            @'
+          function global:Eim-ProfileMarker { 'EIM_PROFILE_LOADED' }
+          function global:prompt { 'EIM_PROFILE_PROMPT>' }
+          '@ | Add-Content -Path $EimProfile -Encoding utf8BOM
+          }
+      - name: Run registry, shell selection, activation, and profile tests
+        working-directory: src-tauri
+        shell: pwsh
+        run: |
+          cargo test --locked --no-default-features --features cli --lib shell::tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --no-default-features --features cli --test registry_configuration --test windows_shell -- --include-ignored
+          exit $LASTEXITCODE

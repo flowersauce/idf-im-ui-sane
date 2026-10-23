@@ -2,6 +2,8 @@
 
 > **Important:** CLI releases (e.g., `eim-cli-*.exe` on Windows) must be run from a terminal like PowerShell rather than double-clicking the executable. Double-clicking will open a terminal window briefly, display help information, and then close immediately, which may appear as if the installer crashed.
 
+EIM does not add its own directory to `PATH` at startup. If you download the Windows executable directly, run it by path, or rename it to `eim.exe` and add its directory to your user `PATH` to use `eim` from any terminal.
+
 The command-line interface supports multiple configuration methods with the following priority (highest to lowest):
 
 1. Command line arguments
@@ -45,17 +47,27 @@ eim <command> --help
 
 ## Environment Variables
 
-Override any configuration setting using environment variables prefixed with `ESP_`. For example:
-- `ESP_TARGET`: Set target platform
-- `ESP_PATH`: Set installation path
-- `ESP_IDF_VERSION`: Set IDF version
+### Installation registry directory
 
-Example:
-```bash
-export ESP_PATH="/opt/esp-idf"
-export ESP_IDF_VERSION="v5.3.2"
-eim install
+Set `EIM_ESP_IDF_JSON_PATH` to the **directory containing** `eim_idf.json` to choose a persistent registry location. Installation, wizard, GUI startup, and version-management commands respect the same setting.
+
+```powershell
+# Current PowerShell session and its child processes
+$env:EIM_ESP_IDF_JSON_PATH = Join-Path $env:LOCALAPPDATA 'Espressif/tools'
+eim list
+eim shell
+
+# Persist for future sessions (reopen your terminal afterward)
+[Environment]::SetEnvironmentVariable('EIM_ESP_IDF_JSON_PATH', $env:EIM_ESP_IDF_JSON_PATH, 'User')
 ```
+
+On POSIX systems, use `export EIM_ESP_IDF_JSON_PATH="$HOME/.local/share/espressif/tools"`.
+
+An explicit `--esp-idf-json-path` wins over the environment variable, which wins over the `esp_idf_json_path` setting in an installation configuration file. Empty or whitespace-only environment values are ignored. Without an override, the existing platform default is unchanged. This setting selects the registry; it does not move existing registrations, ESP-IDF installations, or tool directories. Point it at an existing registry or use it when creating new installations.
+
+### Other settings
+
+For other installation settings, use the command-line arguments or TOML configuration files described below.
 
 ## Configuration Files
 

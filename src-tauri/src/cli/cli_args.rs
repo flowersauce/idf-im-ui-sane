@@ -63,7 +63,7 @@ pub struct Cli {
     #[arg(
         long,
         global = true,
-        help = "Path to directory for eim_idf.json. During install, the configuration file is saved here. For version management commands (list, select, rename, remove, etc.), it specifies where to read the file. Defaults to ~/.espressif/tools on POSIX, C:\\Espressif\\tools on Windows."
+        help = "Path to directory for eim_idf.json. Overrides EIM_ESP_IDF_JSON_PATH. During install, the configuration file is saved here. For version management commands (list, select, rename, remove, etc.), it specifies where to read the file. Defaults to ~/.espressif/tools on POSIX, C:\\Espressif\\tools on Windows."
     )]
     pub esp_idf_json_path: Option<String>,
 }
@@ -128,6 +128,12 @@ pub enum Commands {
     Shell {
         #[arg(help = "ID, name or version of idf to activate")]
         idf: Option<String>,
+        #[arg(
+            long,
+            value_name = "SHELL",
+            help = "Windows: choose pwsh, powershell, or the full path to either executable. Otherwise preserve the invoking PowerShell when detectable."
+        )]
+        shell: Option<PathBuf>,
     },
 
     /// Import existing ESP-IDF installation using tools_set_config.json

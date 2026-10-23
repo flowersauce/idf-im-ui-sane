@@ -36,6 +36,7 @@ pub mod logging;
 pub mod offline_installer;
 pub mod python_utils;
 pub mod settings;
+mod shell;
 pub mod system_dependencies;
 pub mod telemetry;
 pub mod tool_selection;

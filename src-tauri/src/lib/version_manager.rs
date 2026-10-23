@@ -507,6 +507,24 @@ pub fn run_interactive_shell_in_context(
     run_interactive_shell_using_activation_script(&activation_script)
 }
 
+/// Starts an activated shell, optionally choosing a PowerShell executable on Windows.
+pub fn run_interactive_shell_in_context_with_shell(
+    identifier: &str,
+    config_path: Option<&PathBuf>,
+    shell: Option<&Path>,
+) -> anyhow::Result<ExitStatus> {
+    let activation_script = find_activation_script_for_identifier(identifier, config_path)?;
+    if std::env::consts::OS == "windows" {
+        return crate::shell::run_windows_shell(&activation_script, shell);
+    }
+    if shell.is_some() {
+        return Err(anyhow!(
+            "--shell is only supported on Windows; POSIX uses $SHELL"
+        ));
+    }
+    run_interactive_shell_using_activation_script(&activation_script)
+}
+
 fn build_activation_script(activation_script: &str, command: &str) -> String {
     #[cfg(not(target_os = "windows"))]
     let script = format!(
@@ -565,16 +583,7 @@ pub fn run_interactive_shell_using_activation_script(
         "Starting interactive shell using activation script {}",
         activation_script
     );
-    // On Windows the activation profile is run with `-NoExit -File`, so it
-    // executes inside the same PowerShell session the user keeps using -
-    // functions/aliases it defines are naturally still in scope.
-    let script = format!(". \"{}\"\r\npowershell -NoExit -NoLogo", activation_script);
-
-    let executor = crate::command_executor::get_executor();
-    match executor.run_script_from_string_streaming(&script) {
-        Ok(status) => Ok(status),
-        Err(e) => Err(anyhow!("Failed to start interactive shell: {}", e)),
-    }
+    crate::shell::run_windows_shell(activation_script, None)
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -790,6 +799,11 @@ pub async fn prepare_settings_for_fix_idf_installation(
     let mut settings = original_settings.unwrap_or_default();
     if recovered_from_installation {
         settings.config_file = Some(config_path.cloned().unwrap_or_else(get_default_config_path));
+    }
+    // A recovered installation may remember an older registry location. Repair
+    // the registry selected for this invocation instead of switching back to it.
+    if let Some(directory) = resolved_config_path.parent() {
+        settings.esp_idf_json_path = Some(directory.to_string_lossy().into_owned());
     }
     settings.path = Some(path_to_fix.clone());
     settings.non_interactive = Some(true);
@@ -1181,6 +1195,47 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn repair_keeps_the_registry_used_to_find_the_installation() {
+        let temp = TempDir::new().unwrap();
+        let registry = temp.path().join("current registry");
+        let previous_registry = temp.path().join("old registry");
+        let idf_path = temp.path().join("esp-idf");
+        let tools_path = temp.path().join("tools");
+        let original = Settings {
+            esp_idf_json_path: Some(previous_registry.to_string_lossy().into_owned()),
+            tool_install_folder_name: Some(tools_path.to_string_lossy().into_owned()),
+            ..Settings::default()
+        };
+        let mut installation =
+            make_idf_installation(idf_path.to_str().unwrap(), tools_path.to_str().unwrap());
+        installation.installation_config = Some(crate::idf_config::Base64Bytes::new(
+            bincode::serialize(&original).unwrap(),
+        ));
+        let config_path = registry.join("eim_idf.json");
+        let mut config = IdfConfig {
+            git_path: "git".into(),
+            idf_selected_id: installation.id.clone(),
+            idf_installed: vec![installation],
+            eim_path: None,
+            version: None,
+        };
+        config.to_file(&config_path, true, false).unwrap();
+
+        let settings = prepare_settings_for_fix_idf_installation(idf_path, Some(&config_path))
+            .await
+            .unwrap();
+        assert_eq!(
+            settings.esp_idf_json_path,
+            Some(registry.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            settings.tool_install_folder_name,
+            original.tool_install_folder_name
+        );
+        assert!(!previous_registry.exists());
+    }
 
     /// Shims are keyed by the version in the activation script name, so they
     /// must be removed even after the installation was renamed.
