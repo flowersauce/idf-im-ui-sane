@@ -2,8 +2,6 @@
 
 > **Important:** CLI releases (e.g., `eim-cli-*.exe` on Windows) must be run from a terminal like PowerShell rather than double-clicking the executable. Double-clicking will open a terminal window briefly, display help information, and then close immediately, which may appear as if the installer crashed.
 
-EIM does not add its own directory to `PATH` at startup. If you download the Windows executable directly, run it by path, or rename it to `eim.exe` and add its directory to your user `PATH` to use `eim` from any terminal.
-
 The command-line interface supports multiple configuration methods with the following priority (highest to lowest):
 
 1. Command line arguments
